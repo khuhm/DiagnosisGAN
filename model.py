@@ -42,7 +42,7 @@ class cls_block(nn.Module):
 
 
 class ClassNet_three(nn.Module):
-    def __init__(self, in_channels=32, base_channels=128, num_classes=5, ):
+    def __init__(self, in_channels=96, base_channels=128, num_classes=5, ):
         super(ClassNet_three, self).__init__()
 
         self.fc1 = nn.ModuleList([Linear(in_channels, base_channels),
