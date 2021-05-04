@@ -21,15 +21,15 @@ def main():
     # argument parser
     parser = argparse.ArgumentParser(description='train_syn')
     parser.add_argument('--data_dir', type=str, default='/data/ESMH/phase_synthesis/pre_reg_cropped')
-    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/syn_results/base_p1')
+    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/syn_results/full_p2')
     parser.add_argument('--seg_model_path', type=str, default='/data/ESMH/segmentation_results/pretrained/model_final_checkpoint.model')
     parser.add_argument('--cls_model_path', type=str,
                         default='/data/ESMH/DiagnosisGAN/cls_results/base_p4/model_110.pt')
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--num_phase', type=int, default=1)
+    parser.add_argument('--num_phase', type=int, default=2)
     parser.add_argument('--save_interval', type=int, default=10)
-    parser.add_argument('--num_epochs', type=int, default=500)
+    parser.add_argument('--num_epochs', type=int, default=200)
     args = parser.parse_args()
     print(args)
 
@@ -102,7 +102,11 @@ def main():
 
         for batch_idx, data in enumerate(train_data_loader):
             syn_in = data['syn_in'][0].cuda()
+            imgs_four = data['imgs_four'][0].unsqueeze(1).cuda()
             syn_target = data['syn_target'][0].unsqueeze(1).cuda()
+            seg = data['seg'][0].unsqueeze(1).cuda()
+            target_indices = data['target_indices']
+            label = data['label'].cuda()
 
             output = net_G(syn_in)
 
@@ -121,10 +125,23 @@ def main():
             for param in net_D.parameters():
                 param.requires_grad = False
 
+            cls_emb = []
+            cnt = 0
+            for i in range(4):
+                if i in target_indices:
+                    cls_emb.append(seg_model(output[[cnt]], seg[[i]]))
+                    cnt = cnt + 1
+                else:
+                    cls_emb.append(seg_model(imgs_four[[i]], seg[[i]]))
+            cls_emb = torch.cat(cls_emb, dim=1)
+
             pred_G_fake = net_D(output)
             loss_G_GAN = mse_loss(pred_G_fake, real_label)
             loss_G_L1 = l1_loss(output, syn_target)
-            loss_G = loss_G_GAN + loss_G_L1
+
+            pred_G_cls = cls_model(cls_emb, 0)
+            loss_G_cls = ce_loss(pred_G_cls, label)
+            loss_G = loss_G_GAN + loss_G_L1 + 0.1 * loss_G_cls
             optimizer_G.zero_grad()
             loss_G.backward()
             optimizer_G.step()
@@ -134,6 +151,7 @@ def main():
             losses.append(loss_D_real.item())
             losses.append(loss_G_GAN.item())
             losses.append(loss_G_L1.item())
+            losses.append(loss_G_cls.item())
             loss_avg.append(losses)
 
 
@@ -142,6 +160,7 @@ def main():
         plotter.plot('train', 'D_r', 'train loss', epoch, loss_avg[1])
         plotter.plot('train', 'G_G', 'train loss', epoch, loss_avg[2])
         plotter.plot('train', 'G_L', 'train loss', epoch, loss_avg[3])
+        plotter.plot('train', 'G_C', 'train loss', epoch, loss_avg[4])
 
         if epoch % args.save_interval == 0:
             affine = np.eye(4)
