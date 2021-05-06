@@ -4,7 +4,7 @@ from dataset import CT
 import pickle
 import torch
 from torch.backends import cudnn
-from model import ClassNet_three, ClassNet_multi, Generic_UNet, SynNet, Discriminator
+from model import ClassNet_three, ClassNet_multi, Generic_UNet, SynNet, Discriminator, SoftDiceLoss
 from torch.nn import CrossEntropyLoss, L1Loss, MSELoss
 import nibabel as nib
 
@@ -21,14 +21,15 @@ def main():
     # argument parser
     parser = argparse.ArgumentParser(description='train_syn')
     parser.add_argument('--data_dir', type=str, default='/data/ESMH/phase_synthesis/pre_reg_cropped')
-    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/syn_results/full_p2')
+    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/syn_results/full_p3_seg')
     parser.add_argument('--seg_model_path', type=str, default='/data/ESMH/segmentation_results/pretrained/model_final_checkpoint.model')
     parser.add_argument('--cls_model_path', type=str,
-                        default='/data/ESMH/DiagnosisGAN/cls_results/base_p4/model_110.pt')
+                        default='/data/ESMH/DiagnosisGAN/cls_results/base_p4_seg/model_90.pt')
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--num_phase', type=int, default=2)
-    parser.add_argument('--save_interval', type=int, default=10)
+    parser.add_argument('--num_phase', type=int, default=3)
+    parser.add_argument('--save_interval', type=int, default=1)
+    parser.add_argument('--print_interval', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=200)
     args = parser.parse_args()
     print(args)
@@ -70,6 +71,7 @@ def main():
     l1_loss = L1Loss()
     ce_loss = CrossEntropyLoss()
     mse_loss = MSELoss()
+    dice_loss = SoftDiceLoss(tumor_only=True)
 
     # optimizer
     optimizer_G = Adam(net_G.parameters(), lr=args.lr)
@@ -126,22 +128,26 @@ def main():
                 param.requires_grad = False
 
             cls_emb = []
+            pred_seg = []
             cnt = 0
             for i in range(4):
                 if i in target_indices:
-                    cls_emb.append(seg_model(output[[cnt]], seg[[i]]))
+                    out_emb, out_seg = seg_model(output[[cnt]], get_seg=True)
+                    cls_emb.append(out_emb)
+                    pred_seg.append(out_seg)
                     cnt = cnt + 1
                 else:
-                    cls_emb.append(seg_model(imgs_four[[i]], seg[[i]]))
+                    cls_emb.append(seg_model(imgs_four[[i]]))
             cls_emb = torch.cat(cls_emb, dim=1)
-
+            pred_seg = torch.cat(pred_seg, dim=1)
             pred_G_fake = net_D(output)
             loss_G_GAN = mse_loss(pred_G_fake, real_label)
             loss_G_L1 = l1_loss(output, syn_target)
 
             pred_G_cls = cls_model(cls_emb, 0)
             loss_G_cls = ce_loss(pred_G_cls, label)
-            loss_G = loss_G_GAN + loss_G_L1 + 0.1 * loss_G_cls
+            loss_G_seg = dice_loss(pred_seg, seg[target_indices])
+            loss_G = loss_G_GAN + loss_G_L1 + 0.1 * loss_G_seg + 0.1 * loss_G_cls
             optimizer_G.zero_grad()
             loss_G.backward()
             optimizer_G.step()
@@ -151,16 +157,17 @@ def main():
             losses.append(loss_D_real.item())
             losses.append(loss_G_GAN.item())
             losses.append(loss_G_L1.item())
+            losses.append(loss_G_seg.item())
             losses.append(loss_G_cls.item())
             loss_avg.append(losses)
-
 
         loss_avg = np.mean(np.array(loss_avg), axis=0)
         plotter.plot('train', 'D_f', 'train loss', epoch, loss_avg[0])
         plotter.plot('train', 'D_r', 'train loss', epoch, loss_avg[1])
         plotter.plot('train', 'G_G', 'train loss', epoch, loss_avg[2])
         plotter.plot('train', 'G_L', 'train loss', epoch, loss_avg[3])
-        plotter.plot('train', 'G_C', 'train loss', epoch, loss_avg[4])
+        plotter.plot('train', 'G_S', 'train loss', epoch, loss_avg[4])
+        plotter.plot('train', 'G_C', 'train loss', epoch, loss_avg[5])
 
         if epoch % args.save_interval == 0:
             affine = np.eye(4)
@@ -178,7 +185,7 @@ def main():
                 'optimizer_D_state_dict': optimizer_D.state_dict(),
             }, os.path.join(args.res_dir, 'model_' + str(epoch) + '.pt'))
 
-        if epoch % args.save_interval != 0:
+        if epoch % args.print_interval != 0:
             continue
 
         net_G.eval()
@@ -196,7 +203,7 @@ def main():
             with torch.no_grad():
                 output = net_G(syn_in)
                 imgs_four[target_indices] = output
-                cls_emb = seg_model(imgs_four, seg)
+                cls_emb = seg_model(imgs_four)
                 pred_label = cls_model(cls_emb, 0)
                 loss_cls_label = ce_loss(pred_label, label)
                 output = softmax(pred_label, dim=1)
