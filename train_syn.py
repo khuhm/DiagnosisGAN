@@ -203,7 +203,14 @@ def main():
             with torch.no_grad():
                 output = net_G(syn_in)
                 imgs_four[target_indices] = output
-                cls_emb = seg_model(imgs_four)
+
+                cls_emb = []
+                for i in range(4):
+                    cls_emb.append(seg_model(imgs_four[[i]]))
+                cls_emb = torch.cat(cls_emb, dim=1)
+
+                # cls_emb = seg_model(imgs_four)
+
                 pred_label = cls_model(cls_emb, 0)
                 loss_cls_label = ce_loss(pred_label, label)
                 output = softmax(pred_label, dim=1)
