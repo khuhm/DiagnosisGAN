@@ -1,6 +1,6 @@
 from torch import nn
 from torch.nn import Sequential, Conv3d, InstanceNorm3d, LeakyReLU, ReLU, Linear, MaxPool3d, AvgPool3d, \
-    AdaptiveAvgPool3d, Dropout
+    AdaptiveAvgPool3d, Dropout, Sigmoid
 import torch
 import torch.nn.functional as F
 from itertools import combinations
@@ -100,6 +100,111 @@ class ClassNet_multi(nn.Module):
         x = self.dropout(F.relu(self.fc2[idx](x)))
         x = self.fc3[idx](x)
         return x
+
+
+class ClassNet_atten(nn.Module):
+    def __init__(self, in_channels=128, base_channels=128, num_classes=5, ):
+        super(ClassNet_atten, self).__init__()
+        self.fc1 = Linear(in_channels, base_channels)
+        self.fc2 = Linear(base_channels, base_channels)
+        self.fc3 = Linear(base_channels, num_classes)
+        self.relu = ReLU()
+        self.dropout = Dropout(inplace=True)
+        self.conv = Linear(in_channels, 4)
+        self.sigmoid = Sigmoid()
+
+    def forward(self, x):
+        x = x.flatten(start_dim=1)
+        att = self.conv(x)
+        att = self.sigmoid(att)
+        att = att.unsqueeze(2).repeat(1, 1, 32).view(1, -1)
+        x = att * x
+
+        x = self.dropout(self.relu(self.fc1(x)))
+        x = self.dropout(self.relu(self.fc2(x)))
+        x = self.fc3(x)
+        return x
+
+def masked_average_pooling(x, y):
+    mask = (y == 1).to(torch.float)
+    area = torch.sum(mask.view(mask.size(0), -1), dim=1, keepdim=True)
+    masked = x * mask
+    masked = torch.sum(masked.view(masked.size(0), masked.size(1), -1), axis=2)
+    masked = masked / area
+    return masked
+
+
+class ClassNet_Trans(nn.Module):
+    def __init__(self, in_channels=64, base_channels=64, num_classes=5, ):
+        super(ClassNet_Trans, self).__init__()
+        self.conv_q = ConvBlocks(1, 8)
+        self.conv_k = ConvBlocks(1, 8)
+        self.conv_v = ConvBlocks(1, 16)
+
+        self.fc1 = Linear(in_channels, base_channels)
+        self.fc2 = Linear(base_channels, base_channels)
+        self.fc3 = Linear(base_channels, num_classes)
+        self.relu = ReLU()
+        self.dropout = Dropout(inplace=True)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x, y):
+        conv_q = self.conv_q(x)
+        conv_k = self.conv_k(x)
+        conv_v = self.conv_v(x)
+
+        q = masked_average_pooling(conv_q, y)
+        k = masked_average_pooling(conv_k, y)
+        v = masked_average_pooling(conv_v, y)
+
+        k_t = torch.transpose(k, 0, 1)
+        scores = torch.matmul(q, k_t) * (1 / 8**0.5)
+        attn = self.softmax(scores)
+
+        v_new = torch.matmul(attn, v)
+
+        v_new = v_new.view(1, -1)
+        out = self.dropout(self.relu(self.fc1(v_new)))
+        out = self.dropout(self.relu(self.fc2(out)))
+        out = self.fc3(out)
+        return out
+
+
+# class ClassNet_atten(nn.Module):
+#     def __init__(self, in_channels=32, base_channels=128, num_classes=5, num_phase=2):
+#         super(ClassNet_atten, self).__init__()
+#
+#         in_channels = in_channels * num_phase
+#         combs = list(combinations(list(range(4)), num_phase))
+#         num_comb = len(combs)
+#
+#         self.dropout = Dropout(inplace=True)
+#         self.conv = Linear(in_channels, num_phase)
+#         self.sigmoid = Sigmoid()
+#         layer1 = []
+#         layer2 = []
+#         layer3 = []
+#
+#         for i in range(num_comb):
+#             layer1.append(Linear(in_channels, base_channels))
+#             layer2.append(Linear(base_channels, base_channels))
+#             layer3.append(Linear(base_channels, num_classes))
+#
+#         self.fc1 = nn.ModuleList(layer1)
+#         self.fc2 = nn.ModuleList(layer2)
+#         self.fc3 = nn.ModuleList(layer3)
+#
+#     def forward(self, x, idx):
+#         x = x.flatten(start_dim=1)
+#
+#         att = self.conv(x)
+#         att = self.sigmoid(att)
+#         att = att.unsqueeze(2).repeat(1, 1, 32).view(1, -1)
+#         x = att * x
+#         x = self.dropout(F.relu(self.fc1[idx](x)))
+#         x = self.dropout(F.relu(self.fc2[idx](x)))
+#         x = self.fc3[idx](x)
+#         return x
 
 
 class ClassNet_two(nn.Module):

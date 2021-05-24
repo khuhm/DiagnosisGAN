@@ -4,7 +4,7 @@ from dataset import CT
 import pickle
 import torch
 from torch.backends import cudnn
-from model import ClassNet, ClassNet_multi, ClassNet_atten, Generic_UNet
+from model import ClassNet, ClassNet_Trans, ClassNet_atten, Generic_UNet
 from torch.nn import CrossEntropyLoss
 from torch.optim import Adam
 import numpy as np
@@ -19,7 +19,7 @@ def main():
     # argument parser
     parser = argparse.ArgumentParser(description='train_cls')
     parser.add_argument('--data_dir', type=str, default='/data/ESMH/phase_synthesis/pre_reg_cropped')
-    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/cls_results/att')
+    parser.add_argument('--res_dir', type=str, default='/data/ESMH/DiagnosisGAN/cls_results/trans')
     parser.add_argument('--seg_model_path', type=str, default='/data/ESMH/segmentation_results/pretrained/model_final_checkpoint.model')
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -53,7 +53,7 @@ def main():
     checkpoint = torch.load(args.seg_model_path)
     seg_model.load_state_dict(checkpoint['state_dict'])
 
-    cls_model = ClassNet()
+    cls_model = ClassNet_Trans()
     # cls_model = ClassNet_three()
     cls_model.cuda()
 
@@ -79,8 +79,7 @@ def main():
             target_comb = data['target_comb'].cuda()
             label = data['label'].cuda()
 
-            cls_emb = seg_model(img, seg)
-            pred_label = cls_model(cls_emb)
+            pred_label = cls_model(img, seg)
             loss_cls_label = ce_loss(pred_label, label)
 
             optimizer_cls.zero_grad()
@@ -115,8 +114,7 @@ def main():
             label = data['label'].cuda()
 
             with torch.no_grad():
-                cls_emb = seg_model(img, seg)
-                pred_label = cls_model(cls_emb)
+                pred_label = cls_model(img, seg)
                 loss_cls_label = ce_loss(pred_label, label)
                 output = softmax(pred_label, dim=1)
 

@@ -61,8 +61,8 @@ class CT(Dataset):
                    (slice_margin[0] // 2, slice_margin[0] - slice_margin[0] // 2),
                    (slice_margin[1] // 2, slice_margin[1] - slice_margin[1] // 2),
                    (slice_margin[2] // 2, slice_margin[2] - slice_margin[2] // 2),)
-        imgs = np.pad(imgs, padding)
-        segs = np.pad(segs, padding)
+        imgs = np.pad(imgs, padding, 'constant')
+        segs = np.pad(segs, padding, 'constant')
 
         imgs_four = np.copy(imgs)
         segs_four = np.copy(segs)
@@ -74,7 +74,9 @@ class CT(Dataset):
             phase_mask[target_idx] = 1
             syn_in.append(np.concatenate((imgs, phase_mask), axis=0))
 
-        syn_in = np.stack(syn_in)
+        if syn_in:
+            syn_in = np.stack(syn_in)
+
         syn_target = imgs_four[target_indices]
 
         return {'img': imgs,
