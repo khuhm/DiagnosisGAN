@@ -5,10 +5,10 @@ Kwang-Hyun Uhm, Seung-Won Jung, Moon Hyung Choi, Sung-Hoo Hong, Sung-Jea Ko
 Korea University, The Catholic University of Korea, Seoul
 
 JBHI 2022.12
-## Framework
+## Overview
 <img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_1.jpg" width="60%"/>
 
-## Framework
+## Results
 <img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_5.png" width="60%"/>
 
 ## Requirements
