@@ -4,13 +4,14 @@ Kwang-Hyun Uhm, Seung-Won Jung, Moon Hyung Choi, Sung-Hoo Hong, Sung-Jea Ko
 
 Korea University, The Catholic University of Korea, Seoul
 
-JBHI 2022.11
+JBHI 2022.12
 ## Framework
-![framework](./images/figure_1.jpg)
+![framework | 12](./images/figure_1.jpg) 
+
+<img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_1.jpg" width="60%"/>
 
 ## Framework
 
-![figure_5](./images/figure_5.png)
 
 ## Requirements
 * Python >= 3.6
