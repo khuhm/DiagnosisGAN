@@ -6,12 +6,10 @@ Korea University, The Catholic University of Korea, Seoul
 
 JBHI 2022.12
 ## Framework
-![framework | 12](./images/figure_1.jpg) 
-
 <img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_1.jpg" width="60%"/>
 
 ## Framework
-
+<img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_5.png" width="60%"/>
 
 ## Requirements
 * Python >= 3.6
