@@ -9,7 +9,7 @@ JBHI 2022.12
 <img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_1.jpg" width="60%"/>
 
 ## Results
-<img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_5.png" width="60%"/>
+<img src="https://github.com/khuhm/DiagnosisGAN/blob/main/images/figure_5.png" width="80%"/>
 
 ## Requirements
 * Python >= 3.6
